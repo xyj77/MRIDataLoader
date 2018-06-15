@@ -1,0 +1,3 @@
+# ignore DICOM data
+*.dcm
+!Readme.md

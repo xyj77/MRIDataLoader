@@ -1,0 +1,4 @@
+# ignore DICOM data
+*.dcm
+*.bak
+*.pyc

@@ -1,0 +1,1 @@
+tree %cd%>list.txt

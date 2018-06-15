@@ -1,0 +1,4 @@
+# ignore DICOM data
+*.dcm
+!Readme.md
+!genTree.bat
