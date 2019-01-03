@@ -2,6 +2,7 @@
 import os
 import re
 import pandas
+import pickle
 import numpy as np
 import scipy.io as sio
 import scipy.misc as misc
@@ -10,6 +11,8 @@ BBOX_DATA_DIR = '../../Data/BboxAug'
 MAT_DATA_DIR = '/media/lab304/J52/Dataset/Mat'
 LABEL_PATH = '../../Data/labels.csv'
 SAVE_DIR = '../../Data'
+
+sampleSet = set()
 
 def readLabel(asIndex = 'modalNo', index = 'A'):
     '''Read labels
@@ -112,32 +115,35 @@ def saveSlice(patientNo, tumourNo, modal, Bbox, tumourInfo, standard, saveNeg=Fa
     up, bottom = int(up*0.75+0.5), int(bottom*0.75+0.5)
     # 保存中间层面
     roi = Bbox[:, :, up]
-    sampleName = patientNo + '_' + str(tumourNo) + '_' + modal + '_0_'\
+    sampleName = patientNo + '_' + str(tumourNo+1) + '_0_' + modal\
                            + '_' + str(tumourWHO) + '_' + str(tumourEd) + '.jpg'
     savePath = os.path.join(saveDir, sampleName)
     misc.imsave(savePath, roi)
-    
+    sampleSet.add(patientNo + '_' + str(tumourNo+1) + '_0')
     print(savePath+' saved!')
     
     # 保存上面层面
     for i in range(up):
-        sampleName = patientNo + '_' + str(tumourNo) + '_' + modal + '_' + str(-1-i)\
+        sampleName = patientNo + '_' + str(tumourNo+1) + '_' + str(-1-i) + '_' + modal\
                                + '_' + str(tumourWHO) + '_' + str(tumourEd) + '.jpg'
         roi = Bbox[:, :, up-i-1]
         savePath = os.path.join(saveDir, sampleName)
         misc.imsave(savePath, roi)
+        sampleSet.add(patientNo + '_' + str(tumourNo+1) + '_' + str(-1-i))
         print(savePath+' saved!')
         
     # 保存下面层面
     for i in range(bottom):
-        sampleName = patientNo + '_' + str(tumourNo) + '_' + modal + '_' + str(i+1)\
+        sampleName = patientNo + '_' + str(tumourNo+1) + '_' +str(i+1) +  '_' + modal\
                                + '_' + str(tumourWHO) + '_' + str(tumourEd) + '.jpg'
         roi = Bbox[:, :, up+i+1]
         savePath = os.path.join(saveDir, sampleName)
         misc.imsave(savePath, roi)
+        sampleSet.add(patientNo + '_' + str(tumourNo+1) + '_' +str(i+1))
         print(savePath+' saved!')
         
 def saveFusion(patientNo, tumourNo, Bboxs, BboxInfo, fusionName, standard, saveTpye, saveNeg=False):
+    global sampleSet
     if saveNeg and patientNo in ['00431620', '03930451']:
         return
     tumourWHO = BboxInfo[0]['WHO']
@@ -175,39 +181,42 @@ def saveFusion(patientNo, tumourNo, Bboxs, BboxInfo, fusionName, standard, saveT
     # 保存中间层面
     for index, info in enumerate(BboxInfo):
         picMat[:, :, index] = Bboxs[index][:, :, upSlice[index]]
-    sampleName = patientNo + '_' + str(tumourNo) + '_' + fusionName + '_0'\
+    sampleName = patientNo + '_' + str(tumourNo+1) + '_0_' + fusionName\
                            + '_' + str(tumourWHO) + '_' + str(tumourEd) + saveTpye
     savePath = os.path.join(saveDir, sampleName)
     if saveTpye is 'jpg':
         misc.imsave(savePath, picMat)
     else:
         np.save(savePath, picMat)
+    sampleSet.add(patientNo + '_' + str(tumourNo+1) + '_0')
     print(savePath+' saved!')
     
     # 保存上面层面
     for i in range(up):
         for index, info in enumerate(BboxInfo):
             picMat[:, :, index] = Bboxs[index][:, :, upSlice[index]-i-1]
-        sampleName = patientNo + '_' + str(tumourNo) + '_' + fusionName + '_' + str(-1-i)\
+        sampleName = patientNo + '_' + str(tumourNo+1) + '_' +str(-1-i) +  '_' + fusionName\
                                + '_' + str(tumourWHO) + '_' + str(tumourEd) + saveTpye
         savePath = os.path.join(saveDir, sampleName)
         if saveTpye is '.jpg':
             misc.imsave(savePath, picMat)
         else:
             np.save(savePath, picMat)
+        sampleSet.add(patientNo + '_' + str(tumourNo+1) + '_' +str(-1-i))
         print(savePath+' saved!')
         
     # 保存下面层面
     for i in range(bottom):
         for index, info in enumerate(BboxInfo):
             picMat[:, :, index] = Bboxs[index][:, :, upSlice[index]+i+1]
-        sampleName = patientNo + '_' + str(tumourNo) + '_' + fusionName + '_' + str(i+1)\
+        sampleName = patientNo + '_' + str(tumourNo+1) + '_' + str(i+1) + '_' + fusionName\
                                + '_' + str(tumourWHO) + '_' + str(tumourEd) + saveTpye
         savePath = os.path.join(saveDir, sampleName)
         if saveTpye is '.jpg':
             misc.imsave(savePath, picMat)
         else:
             np.save(savePath, picMat)
+        sampleSet.add(patientNo + '_' + str(tumourNo+1) + '_' + str(i+1))
         print(savePath+' saved!')
     
 def readModalData(modal = 'A', standard = 'WHO'):
@@ -268,9 +277,11 @@ def readPatientData(Fusion = ['A', 'B', 'K'], standard = 'WHO', saveTpye = '.jpg
                     negBbox = readBbox(liverVolume, tumourInfo, saveNeg=True) 
                     negBboxs.append(negBbox)                    
             
-            saveFusion(patientNo, tumourNo, posBboxs, BboxInfo, fusionName, standard, saveTpye)
+            saveFusion(patientNo, tumourNo, posBboxs, BboxInfo, fusionName,
+                                    standard, saveTpye)
             if standard is 'Binary':
-                saveFusion(patientNo, tumourNo, negBboxs, BboxInfo, fusionName, standard, saveTpye, saveNeg=True)
+                saveFusion(patientNo, tumourNo, negBboxs, BboxInfo, fusionName,
+                                        standard, saveTpye, saveNeg=True)
         
 def main():
     # modalList = ['A', 'B', 'K', 'E', 'F', 'G', 'H', 'I', 'J']
@@ -299,16 +310,33 @@ def main():
     # for fusion in fusionList:
         # readPatientData(Fusion = list(fusion), standard = 'Binary')
         
-    fusionList = ['EFGHIJ', 'ABKEFGHIJ']     
+    fusionList = ['EFGHIJ', 'ABKEFGHIJ'] 
+    global sampleSet 
     # 按照个体读取
     for fusion in fusionList:
+        sampleSet.clear()
         readPatientData(Fusion = list(fusion), standard = 'WHO', saveTpye = '.npy')
+        binPath = os.path.join(os.path.join(os.path.join(SAVE_DIR, 'WHO'), fusion), 'sample.bin')
+        with open(binPath, 'ab') as fp:
+            pickle.dump(sampleSet, fp)#顺序存入变量
+            
+        # with open(binPath, 'rb') as fp:
+            # data=pickle.load(fp)#顺序导出变量
+            # print(data)
 
     for fusion in fusionList:
+        sampleSet.clear()
         readPatientData(Fusion = list(fusion), standard = 'Edmondson', saveTpye = '.npy')
+        binPath = os.path.join(os.path.join(os.path.join(SAVE_DIR, 'Edmondson'), fusion), 'sample.bin')
+        with open(binPath, 'ab') as fp:
+            pickle.dump(sampleSet, fp)#顺序存入变量
 
     for fusion in fusionList:
+        sampleSet.clear()
         readPatientData(Fusion = list(fusion), standard = 'Binary', saveTpye = '.npy')
+        binPath = os.path.join(os.path.join(os.path.join(SAVE_DIR, 'Binary'), fusion), 'sample.bin')
+        with open(binPath, 'ab') as fp:
+            pickle.dump(sampleSet, fp)#顺序存入变量
   
 if __name__ == "__main__":
     main()
