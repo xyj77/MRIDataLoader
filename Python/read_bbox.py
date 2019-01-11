@@ -4,6 +4,7 @@ import re
 import pandas
 import pickle
 import numpy as np
+from PIL import Image
 import scipy.io as sio
 import scipy.misc as misc
 
@@ -60,9 +61,9 @@ def readLabel(asIndex = 'modalNo', index = 'A'):
         readLabel(asIndex = 'modalNo', index = 'A') 
     '''
     #读csv文件
-    if asIndex is 'modalNo':
+    if asIndex == 'modalNo':
         labels = pandas.read_csv(LABEL_PATH, index_col=[2,0,1])
-    elif asIndex is 'patientNo':
+    elif asIndex == 'patientNo':
         index = '\'' + index + '\''
         labels = pandas.read_csv(LABEL_PATH, index_col=[0,1,2])
     labels = labels.fillna('null')
@@ -88,6 +89,121 @@ def readBbox(liverVolume, tumourInfo, saveNeg=False):
                        tumourCenter[1]-tumourSize[1]/2:tumourCenter[1]+tumourSize[1]/2+1,
                        tumourLoc[4]:tumourLoc[5]+1]
 
+def saveSliceToFile(Bbox, index, savePath):
+    '''
+    # Method 1：使用numpy的rot90和flip
+    '''
+    
+    # 保存原图
+    image = np.squeeze(Bbox[:, :, index])
+    misc.imsave(savePath + '.jpg', image)   
+
+    # 保存扩容图        
+    ############## rotate volume ##############
+    rot90 = np.rot90(Bbox)                  #设置逆时针旋转90
+    image = np.squeeze(rot90[:, :, index])
+    misc.imsave(savePath + '_90.jpg', image) 
+    
+    rot180 = np.rot90(Bbox, 2)              #设置逆时针旋转180
+    image = np.squeeze(rot180[:, :, index])
+    misc.imsave(savePath + '_180.jpg', image)
+    
+    rot270 = np.rot90(Bbox, 3)              #设置逆时针旋转270
+    image = np.squeeze(rot270[:, :, index])
+    misc.imsave(savePath + '_270.jpg', image)
+    
+    ############### flip volume ###############
+    lr = np.fliplr(Bbox)                    #左右互换
+    image = np.squeeze(lr[:, :, index])
+    misc.imsave(savePath + '_lr.jpg', image)    
+    
+    ud = np.flipud(Bbox)                    #上下互换
+    image = np.squeeze(ud[:, :, index])
+    misc.imsave(savePath + '_ud.jpg', image)    
+
+    print(savePath+' saved!') 
+    
+    '''
+    # Method 2: 使用PIL Image的transpose，和rotate
+    # 只能用于单通道灰度图和三通道彩色图
+    roi = Bbox[:, :, index]
+    # 扩容
+    image = np.squeeze(roi)
+    image = Image.fromarray(image)
+    
+    # 调整尺寸特别小的数据的大小
+    w, h = image.size
+    m = min(w, h)
+    if m < 32:
+        w, h = int(32.0*w/m), int(32.0*h/m)
+        image = image.resize((w, h))  #重设宽，高
+        print(w, h)
+
+    # 保存原图
+    misc.imsave(savePath + '.jpg', roi)
+    
+    # 保存扩容图
+    # dst5 = img.rotate(45)                  #逆时针旋转45
+    img = image.transpose(Image.ROTATE_90)   #设置逆时针旋转90
+    misc.imsave(savePath + '_90.jpg', img)
+    img = image.transpose(Image.ROTATE_180)  #设置逆时针旋转180
+    misc.imsave(savePath + '_180.jpg', img)
+    img = image.transpose(Image.ROTATE_270)  #设置逆时针旋转270
+    misc.imsave(savePath + '_270.jpg', img)
+    img = image.transpose(Image.FLIP_LEFT_RIGHT)  #左右互换
+    misc.imsave(savePath + '_lr.jpg', img)
+    img = image.transpose(Image.FLIP_TOP_BOTTOM)  #上下互换
+    misc.imsave(savePath + '_ud.jpg', img)
+    print(savePath+' saved!')  
+    '''
+    
+def saveFusionToFile(picMat, savePath, saveTpye):
+    if saveTpye == '.jpg':
+        # 保存原图
+        misc.imsave(savePath+saveTpye, picMat)
+        
+        # 保存扩容图        
+        ############## rotate volume ##############
+        rot90 = np.rot90(picMat)              #设置逆时针旋转90
+        misc.imsave(savePath + '_90' + saveTpye, rot90)
+        
+        rot180 = np.rot90(picMat, 2)          #设置逆时针旋转180
+        misc.imsave(savePath + '_180' + saveTpye, rot180) 
+
+        rot270 = np.rot90(picMat, 3)          #设置逆时针旋转270
+        misc.imsave(savePath + '_270' + saveTpye, rot270)   
+        
+        ############### flip volume ###############
+        lr = np.fliplr(picMat)                #左右互换
+        misc.imsave(savePath + '_lr' + saveTpye, lr)    
+    
+        ud = np.flipud(picMat)                #上下互换
+        misc.imsave(savePath + '_ud' + saveTpye, ud)
+        
+    else:
+        # 保存原图
+        np.save(savePath+saveTpye, picMat)
+  
+        # 保存扩容图        
+        ############## rotate volume ##############
+        rot90 = np.rot90(picMat)              #设置逆时针旋转90
+        np.save(savePath + '_90' + saveTpye, rot90)
+        
+        rot180 = np.rot90(picMat, 2)          #设置逆时针旋转180
+        np.save(savePath + '_180' + saveTpye, rot180) 
+
+        rot270 = np.rot90(picMat, 3)          #设置逆时针旋转270
+        np.save(savePath + '_270' + saveTpye, rot270)   
+        
+        ############### flip volume ###############
+        lr = np.fliplr(picMat)                #左右互换
+        np.save(savePath + '_lr' + saveTpye, lr)    
+    
+        ud = np.flipud(picMat)                #上下互换
+        np.save(savePath + '_ud' + saveTpye, ud)
+
+    print(savePath+' saved!') 
+    
 def saveSlice(patientNo, tumourNo, modal, Bbox, tumourInfo, standard, saveNeg=False):
     if saveNeg and patientNo in ['00431620', '03930451']:
         return
@@ -98,13 +214,13 @@ def saveSlice(patientNo, tumourNo, modal, Bbox, tumourInfo, standard, saveNeg=Fa
     tumourEd = int(tumourInfo['Edmondson'])
     # 确定存储目录
     saveDir = os.path.join(os.path.join(SAVE_DIR, standard), modal)
-    if standard is 'Binary':
+    if standard == 'Binary':
         if saveNeg:
             saveDir = os.path.join(saveDir, '0')
         else:
             saveDir = os.path.join(saveDir, '1')
     else:
-        if standard is 'WHO':
+        if standard == 'WHO':
             saveDir = os.path.join(saveDir, str(tumourWHO-1))
         else:
             saveDir = os.path.join(saveDir, str(tumourEd-1))
@@ -113,34 +229,29 @@ def saveSlice(patientNo, tumourNo, modal, Bbox, tumourInfo, standard, saveNeg=Fa
         
     up, bottom = serNo-tumourLoc[4], tumourLoc[5]-serNo
     up, bottom = int(up*0.75+0.5), int(bottom*0.75+0.5)
+    
     # 保存中间层面
-    roi = Bbox[:, :, up]
     sampleName = patientNo + '_' + str(tumourNo+1) + '_0_' + modal\
-                           + '_' + str(tumourWHO) + '_' + str(tumourEd) + '.jpg'
+                           + '_' + str(tumourWHO) + '_' + str(tumourEd)
     savePath = os.path.join(saveDir, sampleName)
-    misc.imsave(savePath, roi)
-    sampleSet.add(patientNo + '_' + str(tumourNo+1) + '_0')
-    print(savePath+' saved!')
+    saveSliceToFile(Bbox, up, savePath)# 保存到文件
+    sampleSet.add(patientNo + '_' + str(tumourNo+1) + '_0')# 保存样本编号
     
     # 保存上面层面
     for i in range(up):
         sampleName = patientNo + '_' + str(tumourNo+1) + '_' + str(-1-i) + '_' + modal\
-                               + '_' + str(tumourWHO) + '_' + str(tumourEd) + '.jpg'
-        roi = Bbox[:, :, up-i-1]
+                               + '_' + str(tumourWHO) + '_' + str(tumourEd)
         savePath = os.path.join(saveDir, sampleName)
-        misc.imsave(savePath, roi)
+        saveSliceToFile(Bbox, up-i-1, savePath)# 保存到文件
         sampleSet.add(patientNo + '_' + str(tumourNo+1) + '_' + str(-1-i))
-        print(savePath+' saved!')
         
     # 保存下面层面
     for i in range(bottom):
         sampleName = patientNo + '_' + str(tumourNo+1) + '_' +str(i+1) +  '_' + modal\
-                               + '_' + str(tumourWHO) + '_' + str(tumourEd) + '.jpg'
-        roi = Bbox[:, :, up+i+1]
+                               + '_' + str(tumourWHO) + '_' + str(tumourEd)
         savePath = os.path.join(saveDir, sampleName)
-        misc.imsave(savePath, roi)
+        saveSliceToFile(Bbox, up+i+1, savePath)# 保存到文件
         sampleSet.add(patientNo + '_' + str(tumourNo+1) + '_' +str(i+1))
-        print(savePath+' saved!')
         
 def saveFusion(patientNo, tumourNo, Bboxs, BboxInfo, fusionName, standard, saveTpye, saveNeg=False):
     global sampleSet
@@ -150,13 +261,13 @@ def saveFusion(patientNo, tumourNo, Bboxs, BboxInfo, fusionName, standard, saveT
     tumourEd = int(BboxInfo[0]['Edmondson'])
     # 确定存储目录
     saveDir = os.path.join(os.path.join(SAVE_DIR, standard), fusionName)
-    if standard is 'Binary':
+    if standard == 'Binary':
         if saveNeg:
             saveDir = os.path.join(saveDir, '0')
         else:
             saveDir = os.path.join(saveDir, '1')
     else:
-        if standard is 'WHO':
+        if standard == 'WHO':
             saveDir = os.path.join(saveDir, str(tumourWHO-1))
         else:
             saveDir = os.path.join(saveDir, str(tumourEd-1))
@@ -182,48 +293,36 @@ def saveFusion(patientNo, tumourNo, Bboxs, BboxInfo, fusionName, standard, saveT
     for index, info in enumerate(BboxInfo):
         picMat[:, :, index] = Bboxs[index][:, :, upSlice[index]]
     sampleName = patientNo + '_' + str(tumourNo+1) + '_0_' + fusionName\
-                           + '_' + str(tumourWHO) + '_' + str(tumourEd) + saveTpye
+                           + '_' + str(tumourWHO) + '_' + str(tumourEd)
     savePath = os.path.join(saveDir, sampleName)
-    if saveTpye is 'jpg':
-        misc.imsave(savePath, picMat)
-    else:
-        np.save(savePath, picMat)
+    saveFusionToFile(picMat, savePath, saveTpye)
     sampleSet.add(patientNo + '_' + str(tumourNo+1) + '_0')
-    print(savePath+' saved!')
     
     # 保存上面层面
     for i in range(up):
         for index, info in enumerate(BboxInfo):
             picMat[:, :, index] = Bboxs[index][:, :, upSlice[index]-i-1]
         sampleName = patientNo + '_' + str(tumourNo+1) + '_' +str(-1-i) +  '_' + fusionName\
-                               + '_' + str(tumourWHO) + '_' + str(tumourEd) + saveTpye
+                               + '_' + str(tumourWHO) + '_' + str(tumourEd)
         savePath = os.path.join(saveDir, sampleName)
-        if saveTpye is '.jpg':
-            misc.imsave(savePath, picMat)
-        else:
-            np.save(savePath, picMat)
+        saveFusionToFile(picMat, savePath, saveTpye)
         sampleSet.add(patientNo + '_' + str(tumourNo+1) + '_' +str(-1-i))
-        print(savePath+' saved!')
         
     # 保存下面层面
     for i in range(bottom):
         for index, info in enumerate(BboxInfo):
             picMat[:, :, index] = Bboxs[index][:, :, upSlice[index]+i+1]
         sampleName = patientNo + '_' + str(tumourNo+1) + '_' + str(i+1) + '_' + fusionName\
-                               + '_' + str(tumourWHO) + '_' + str(tumourEd) + saveTpye
+                               + '_' + str(tumourWHO) + '_' + str(tumourEd)
         savePath = os.path.join(saveDir, sampleName)
-        if saveTpye is '.jpg':
-            misc.imsave(savePath, picMat)
-        else:
-            np.save(savePath, picMat)
+        saveFusionToFile(picMat, savePath, saveTpye)
         sampleSet.add(patientNo + '_' + str(tumourNo+1) + '_' + str(i+1))
-        print(savePath+' saved!')
     
 def readModalData(modal = 'A', standard = 'WHO'):
     '''
     指定模态读取数据
     '''   
-    if modal is 'K':
+    if modal == 'K':
         labels = readLabel(asIndex = 'modalNo', index = 'B')
     else:
         labels = readLabel(asIndex = 'modalNo', index = modal)
@@ -242,6 +341,7 @@ def readModalData(modal = 'A', standard = 'WHO'):
             # roi区域
             posBbox = readBbox(liverVolume, tumourInfo)
             saveSlice(patientNo, tumourNo, modal, posBbox, tumourInfo, standard)
+            # print(posBbox.shape)
             
             if standard is 'Binary':
                 # 背景区域
@@ -265,7 +365,7 @@ def readPatientData(Fusion = ['A', 'B', 'K'], standard = 'WHO', saveTpye = '.jpg
                 dataDir = os.path.join(MAT_DATA_DIR, patientNo)
                 dataPath = os.path.join(dataDir, modal+'.mat')
                 liverVolume = sio.loadmat(dataPath)['D']
-                if modal is 'K':
+                if modal == 'K':
                     tumourInfo = Info.loc['B']
                 else:
                     tumourInfo = Info.loc[modal]            
@@ -273,20 +373,20 @@ def readPatientData(Fusion = ['A', 'B', 'K'], standard = 'WHO', saveTpye = '.jpg
                 posBbox = readBbox(liverVolume, tumourInfo)
                 posBboxs.append(posBbox)
                 BboxInfo.append(tumourInfo)
-                if standard is 'Binary':
+                if standard == 'Binary':
                     negBbox = readBbox(liverVolume, tumourInfo, saveNeg=True) 
                     negBboxs.append(negBbox)                    
             
             saveFusion(patientNo, tumourNo, posBboxs, BboxInfo, fusionName,
                                     standard, saveTpye)
-            if standard is 'Binary':
+            if standard == 'Binary':
                 saveFusion(patientNo, tumourNo, negBboxs, BboxInfo, fusionName,
                                         standard, saveTpye, saveNeg=True)
         
 def main():
     # modalList = ['A', 'B', 'K', 'E', 'F', 'G', 'H', 'I', 'J']
     # fusionList = ['ABK', 'EGJ']
-    # # 按照模态读取
+    # 按照模态读取
     # for modal in modalList:
         # readModalData(modal=modal, standard = 'WHO')
         
@@ -309,7 +409,8 @@ def main():
     # # 按照个体读取
     # for fusion in fusionList:
         # readPatientData(Fusion = list(fusion), standard = 'Binary')
-        
+      
+    ########################################################################################      
     fusionList = ['EFGHIJ', 'ABKEFGHIJ'] 
     global sampleSet 
     # 按照个体读取

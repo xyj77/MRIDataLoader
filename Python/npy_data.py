@@ -54,8 +54,6 @@ class MRINPY(BaseDataLoader):
         # 提取融合数据
         img = self.extrData(img, self.dict, self.Fusion)
         
-        # img = Image.fromarray(img, mode='L')
-        img = Image.fromarray(img, mode='RGB')
         if self.transform is not None:
             img = self.transform(img)
 
@@ -112,8 +110,15 @@ class MRINPY(BaseDataLoader):
         while len(line):
             Level = int(line[0])
             imgpath = line[2:-1]
-            mat = np.load(imgpath)
-            # mat = Image.open(imgpath) 
+            
+            # 是否进行数据扩充
+            if (not self.isAug) and self.lineSearch(imgpath):
+                continue
+            
+            if 'npy' in imgpath:
+                mat = np.load(imgpath)
+            else:
+                mat = Image.open(imgpath) 
                 
             data.append(mat)
             labels.append(Level)
@@ -126,7 +131,29 @@ class MRINPY(BaseDataLoader):
         image = []
         for modual in Fusion:
             image.append(img[:,:,dict[modual]])
-        return np.array(image)
+        image = np.array(image)
+        
+        # 调整尺寸特别小的数据的大小
+        w, h = image.size
+        m = min(w, h)
+        if m < 32:
+            w, h = int(32.0*w/m), int(32.0*h/m)
+            image = image.resize((w, h))  #重设宽，高
+            print(w, h)
+        
+        if len(Fusion) == 1:
+            image = np.squeeze(image)
+            image = Image.fromarray(image)
+        else:
+            image = image.transpose (1, 2, 0)
+            image = Image.fromarray(np.dot(255, image).astype('int8'), mode='RGB')
+        return image
+    
+    def lineSearch(self, line, strlist=['_90','_270','_180','_lr','ud','tr','tr2']):
+        for str in strlist:
+            if str in line:
+                return False
+        return True
     
 if __name__ == "__main__":
     pass
